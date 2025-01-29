@@ -1,0 +1,28 @@
+board:
+  origin:
+    x: 0.15  # 150mm from base
+    y: -0.2  # 200mm to the left
+    z: 0.015 # At table height
+  square_size: 0.03  # 30mm squares
+  piece_height: 0.103 # 103mm piece height
+  hover_height: 0.10 # 100mm above pieces for clearance
+
+capture_zone:
+  origin:
+    x: 0.15  # Same x-coordinate as board origin
+    y: 0.1   # 100mm to the right of board origin
+  dimensions:
+    width: 0.09   # 90mm wide (3 squares)
+    height: 0.24  # 240mm tall (8 squares)
+  grid:
+    rows: 8  # One row per rank
+    cols: 3  # Three columns for captured pieces
+
+robot:
+  movement:
+    max_velocity_scaling: 0.1
+    max_acceleration_scaling: 0.1
+    planning_time: 5.0
+    planning_attempts: 10
+    replan_attempts: 10
+    replan_delay: 0.1

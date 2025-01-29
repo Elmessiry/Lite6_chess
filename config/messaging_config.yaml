@@ -1,0 +1,11 @@
+rabbitmq:
+  host: host.docker.internal
+  port: 5672
+  exchange: chess_moves
+  exchange_type: direct
+  queue: robot_moves
+  routing_key: move.engine
+  connection:
+    retry_delay: 5
+    max_retries: 3
+    heartbeat: 60
