@@ -45,5 +45,6 @@ choose simulation or real arm
 • Go to Rviz, add the visualization by clicking add on the displays list on the left side of the Rviz window, and adding a MarkerArray then changing its topic to /chess_board_visualization then press enter
 
 • start fritz engine
+
 • in a new terminal navigate to repository folder, then  /windows/src
       run  python3 main.py  and choose the fritz window if prompted and the robot color
