@@ -1,8 +1,0 @@
-2025-03-05 15:02:26,757 - messaging - INFO - performance_logger.py:20 - LATENCY: rabbitmq_connection took 105.82ms
-2025-03-05 15:02:26,760 - messaging - INFO - subscriber.py:81 - Successfully connected to RabbitMQ
-2025-03-05 15:02:26,765 - messaging - INFO - subscriber.py:121 - Started consuming messages from RabbitMQ
-2025-03-05 15:02:31,109 - messaging - INFO - subscriber.py:97 - Received move: {'from_square': 'g8', 'to_square': 'h6', 'message_id': '509857ca', 'timestamp': 1741186951.1068583}
-2025-03-05 15:02:31,110 - messaging - INFO - performance_logger.py:20 - LATENCY: message_delivery took 3.80ms
-2025-03-05 15:02:31,112 - messaging - INFO - subscriber.py:97 - Received move: {'from_square': 'f7', 'to_square': 'f5', 'message_id': '9d3c7c16', 'timestamp': 1741186951.107864}
-2025-03-05 15:02:31,112 - messaging - INFO - performance_logger.py:20 - LATENCY: message_delivery took 4.65ms
-2025-03-05 15:02:49,401 - messaging - ERROR - subscriber.py:187 - Error during cleanup: Stream connection lost: IndexError('pop from an empty deque')

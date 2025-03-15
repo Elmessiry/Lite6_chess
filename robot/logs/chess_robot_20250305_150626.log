@@ -1,9 +1,0 @@
-2025-03-05 15:06:29,777 - messaging - INFO - performance_logger.py:20 - LATENCY: rabbitmq_connection took 59.28ms
-2025-03-05 15:06:29,778 - messaging - INFO - subscriber.py:81 - Successfully connected to RabbitMQ
-2025-03-05 15:06:29,783 - messaging - INFO - subscriber.py:121 - Started consuming messages from RabbitMQ
-2025-03-05 15:06:52,426 - messaging - INFO - subscriber.py:97 - Received move: {'from_square': 'g8', 'to_square': 'h6', 'message_id': 'b704e213', 'timestamp': 1741187212.418836}
-2025-03-05 15:06:52,428 - messaging - INFO - performance_logger.py:20 - LATENCY: message_delivery took 9.27ms
-2025-03-05 15:06:52,435 - messaging - INFO - subscriber.py:97 - Received move: {'from_square': 'f7', 'to_square': 'f5', 'message_id': '8b801e77', 'timestamp': 1741187212.4261487}
-2025-03-05 15:06:52,435 - messaging - INFO - performance_logger.py:20 - LATENCY: message_delivery took 9.44ms
-2025-03-05 15:07:17,427 - messaging - INFO - performance_logger.py:31 - MOVE: g8h6 SUCCESS (planning: 0.00ms, execution: 24937.79ms)
-2025-03-05 15:07:42,147 - messaging - INFO - performance_logger.py:31 - MOVE: f7f5 SUCCESS (planning: 0.00ms, execution: 24618.58ms)
