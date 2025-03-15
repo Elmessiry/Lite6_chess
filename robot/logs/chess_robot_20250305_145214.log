@@ -1,0 +1,12 @@
+2025-03-05 14:52:18,377 - messaging - INFO - performance_logger.py:20 - LATENCY: rabbitmq_connection took 59.55ms
+2025-03-05 14:52:18,380 - messaging - INFO - subscriber.py:81 - Successfully connected to RabbitMQ
+2025-03-05 14:52:18,400 - messaging - INFO - subscriber.py:121 - Started consuming messages from RabbitMQ
+2025-03-05 14:52:29,040 - messaging - INFO - subscriber.py:97 - Received move: {'from_square': 'g8', 'to_square': 'h6', 'message_id': '0d709f12', 'timestamp': 1741186349.0389671}
+2025-03-05 14:52:29,041 - messaging - INFO - performance_logger.py:20 - LATENCY: message_delivery took 2.32ms
+2025-03-05 14:52:29,055 - messaging - INFO - subscriber.py:97 - Received move: {'from_square': 'f7', 'to_square': 'f5', 'message_id': 'ee3d0950', 'timestamp': 1741186349.0417066}
+2025-03-05 14:52:29,055 - messaging - INFO - performance_logger.py:20 - LATENCY: message_delivery took 14.09ms
+2025-03-05 14:52:31,505 - messaging - INFO - performance_logger.py:31 - MOVE: g8h6 FAILURE (planning: 0.00ms, execution: 2391.92ms)
+2025-03-05 14:52:31,506 - messaging - ERROR - performance_logger.py:35 - ERROR: movement - execution_failure: Move g8h6
+2025-03-05 14:52:33,841 - messaging - INFO - performance_logger.py:31 - MOVE: f7f5 FAILURE
+2025-03-05 14:52:33,841 - messaging - ERROR - performance_logger.py:35 - ERROR: movement - execution_failure: Move f7f5
+2025-03-05 14:53:16,257 - messaging - ERROR - subscriber.py:187 - Error during cleanup: Stream connection lost: IndexError('pop from an empty deque')

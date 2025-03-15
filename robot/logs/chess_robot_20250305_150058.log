@@ -1,0 +1,13 @@
+2025-03-05 15:01:02,965 - messaging - INFO - performance_logger.py:20 - LATENCY: rabbitmq_connection took 62.14ms
+2025-03-05 15:01:02,967 - messaging - INFO - subscriber.py:81 - Successfully connected to RabbitMQ
+2025-03-05 15:01:02,970 - messaging - INFO - subscriber.py:121 - Started consuming messages from RabbitMQ
+2025-03-05 15:01:06,364 - messaging - INFO - subscriber.py:97 - Received move: {'from_square': 'g8', 'to_square': 'h6', 'message_id': 'a6c13ce5', 'timestamp': 1741186866.35585}
+2025-03-05 15:01:06,365 - messaging - INFO - performance_logger.py:20 - LATENCY: message_delivery took 9.28ms
+2025-03-05 15:01:06,366 - messaging - INFO - subscriber.py:97 - Received move: {'from_square': 'f7', 'to_square': 'f5', 'message_id': 'e46c414c', 'timestamp': 1741186866.3578663}
+2025-03-05 15:01:06,367 - messaging - INFO - performance_logger.py:20 - LATENCY: message_delivery took 9.37ms
+2025-03-05 15:01:34,003 - messaging - INFO - performance_logger.py:31 - MOVE: g8h6 FAILURE (planning: 0.00ms, execution: 27539.23ms)
+2025-03-05 15:01:34,004 - messaging - ERROR - performance_logger.py:35 - ERROR: movement - execution_failure: Move g8h6
+2025-03-05 15:01:55,834 - messaging - INFO - performance_logger.py:31 - MOVE: f7f5 FAILURE
+2025-03-05 15:01:55,835 - messaging - ERROR - performance_logger.py:35 - ERROR: movement - execution_failure: Move f7f5
+2025-03-05 15:02:20,880 - messaging - ERROR - subscriber.py:125 - RabbitMQ consuming error: Stream connection lost: IndexError('pop from an empty deque')
+2025-03-05 15:02:20,880 - messaging - ERROR - subscriber.py:187 - Error during cleanup: 'NoneType' object has no attribute 'clear'
