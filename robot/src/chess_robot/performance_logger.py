@@ -6,13 +6,14 @@ from datetime import datetime
 import json
 import threading
 from typing import Optional
+from .logging_utils import setup_logging
 
 class PerformanceMetrics:
     """Simple performance metrics collector for chess robot"""
     
-    def __init__(self, logger_name: str):
+    def __init__(self):
         """Initialize with a logger name"""
-        self.logger = logging.getLogger(logger_name)
+        self.logger = setup_logging('chess_robot.performance')
     
     def log_latency(self, operation: str, start_time: float) -> float:
         """Log latency for an operation"""
@@ -37,15 +38,14 @@ class PerformanceMetrics:
 class PerformanceLogger:
     """Enhanced logger for collecting performance and reliability metrics"""
     
-    def __init__(self, logger_name, export_interval=300):
+    def __init__(self, export_interval=300):
         """
         Initialize the performance logger
         
         Args:
-            logger_name: Name of the logger
             export_interval: How often to export metrics (in seconds)
         """
-        self.logger = logging.getLogger(logger_name)
+        self.logger = setup_logging('chess_robot.performance')
         self.metrics = {
             "latency": [],
             "message_delivery": [],
@@ -57,7 +57,7 @@ class PerformanceLogger:
         self.start_time = time.time()
         
         # Create logs directory if it doesn't exist
-        logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+        logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'logs')
         os.makedirs(logs_dir, exist_ok=True)
         
         # Start the export thread
@@ -149,7 +149,7 @@ class PerformanceLogger:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
             # Create filepath
-            logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+            logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'logs')
             filepath = os.path.join(logs_dir, f"metrics_{timestamp}.json")
             
             # Add summary statistics

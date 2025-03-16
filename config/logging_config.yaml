@@ -1,10 +1,11 @@
-
 version: 1
 disable_existing_loggers: false
 
 formatters:
   standard:
     format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  detailed:
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
 
 handlers:
   console:
@@ -12,12 +13,30 @@ handlers:
     level: INFO
     formatter: standard
     stream: ext://sys.stdout
+  file:
+    class: logging.FileHandler
+    level: DEBUG
+    formatter: detailed
+    filename: "PLACEHOLDER"  # Will be set programmatically
+    encoding: utf8
 
 loggers:
+  chess_robot:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: false
+  chess_robot.performance:
+    level: INFO
+    handlers: [console, file]
+    propagate: false
   fritz_interface:
     level: INFO
-    handlers: [console]
-    propagate: no
+    handlers: [console, file]
+    propagate: false
+  messaging:
+    level: INFO
+    handlers: [console, file]
+    propagate: false
 
 root:
   level: INFO

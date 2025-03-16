@@ -3,22 +3,27 @@ import asyncio
 import pika
 import json
 import threading
+import time
 from queue import Queue
 import logging
 import yaml
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from ..nodes.chess_node import ChessNode
+from ..performance_logger import PerformanceLogger, PerformanceMetrics
 
 class ChessRobotSubscriber:
     """Handles RabbitMQ message subscription and movement execution"""
     
-    def __init__(self):
+    def __init__(self, perf_logger: Optional[PerformanceLogger] = None):
         # Setup logging
         self.setup_logging()
         
+        # Setup performance logging
+        self.perf_logger = perf_logger or PerformanceLogger()
+        
         # Initialize ROS node
-        self.node = ChessNode()
+        self.node = ChessNode(perf_logger=self.perf_logger)
         
         # Initialize move queue
         self.move_queue = Queue()
@@ -109,6 +114,7 @@ class ChessRobotSubscriber:
     def rabbitmq_callback(self, ch, method, properties, body):
         """Handle received messages from RabbitMQ"""
         try:
+            start_time = time.time()
             message = json.loads(body)
             self.logger.info(f"Received move: {message}")
             
@@ -117,6 +123,9 @@ class ChessRobotSubscriber:
             
             # Acknowledge message
             ch.basic_ack(delivery_tag=method.delivery_tag)
+            
+            # Log message processing latency
+            self.perf_logger.log_latency("message_processing", start_time)
             
         except Exception as e:
             self.logger.error(f"Error processing message: {e}")
@@ -172,6 +181,7 @@ class ChessRobotSubscriber:
                 
             except Exception as e:
                 self.logger.error(f"Error processing move: {e}")
+                self.perf_logger.log_error("move_processor", "execution_error", str(e))
                 await asyncio.sleep(1)
 
     def cleanup(self):

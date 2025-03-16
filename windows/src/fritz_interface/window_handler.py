@@ -4,6 +4,11 @@ from pywinauto import Application
 from typing import Optional, List
 import pyperclip
 import time
+import warnings
+
+# Suppress pywinauto UserWarning about key combinations
+warnings.filterwarnings("ignore", category=UserWarning, 
+                       message="Key combinations may or may not work depending on the target app")
 
 class FritzWindowHandler:
     def __init__(self, logger: logging.Logger):

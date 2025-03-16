@@ -7,10 +7,15 @@ import yaml
 import os
 from ..visualization.visualizer import ChessboardVisualizer
 from ..movement.movement_controller import MovementController
+from ..performance_logger import PerformanceLogger
+from typing import Optional
 
 class ChessNode(Node):
-    def __init__(self):
-        super().__init__('chess_node')
+    """ROS2 node for chess robot operations"""
+    
+    def __init__(self, perf_logger: Optional[PerformanceLogger] = None):
+        super().__init__('chess_robot')
+        self.get_logger().info('Initializing Chess Robot Node')
         
         # Setup logging
         self.setup_logging()
@@ -19,7 +24,7 @@ class ChessNode(Node):
         self.visualizer = ChessboardVisualizer(self)
         
         # Initialize movement controller
-        self.movement = MovementController(self)
+        self.movement = MovementController(self, perf_logger)
         
         # Wait for subscribers
         self.get_logger().info("Waiting for visualization subscribers...")
@@ -27,6 +32,8 @@ class ChessNode(Node):
             self.get_logger().info("No subscribers yet...")
             time.sleep(1.0)
         self.get_logger().info("Visualization subscriber connected!")
+
+        self.get_logger().info('Chess Robot Node initialized')
 
     def setup_logging(self):
         """Setup logging configuration"""
