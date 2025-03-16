@@ -4,10 +4,9 @@ Prerequisites
 2.1. install erlang https://www.erlang.org/downloads
 2.2. x server   https://sourceforge.net/projects/vcxsrv/  
 3. fritz engine 15 or newer
-4. dgt board plugins  https://digitalgametechnology.com/support/software/software-downloads
-5. chessnut plugins  https://goneill.co.nz/chess.php#chessnut
-6. rabbitmq  https://www.rabbitmq.com/docs/install-windows#downloads
-7. requirements.txt
+4. chessnut plugins  https://goneill.co.nz/chess.php#chessnut
+5. rabbitmq  https://www.rabbitmq.com/docs/install-windows#downloads
+6. requirements.txt
 
 For Windows
 
