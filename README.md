@@ -45,5 +45,7 @@ choose simulation or real arm
 
 • start fritz engine
 
+• connect the chess board to fritz engine and select DGT board from the tool bar
+
 • in a new terminal navigate to repository folder, then  /windows/src
       run  python3 main.py  and choose the fritz window if prompted and the robot color
