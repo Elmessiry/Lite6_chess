@@ -1,24 +1,25 @@
 import logging
-from typing import List, Tuple, Optional
-from .window_handler import FritzWindowHandler
+from typing import List, Tuple
+
 from .pgn_parser import PGNParser
 
-class FritzMoveDetector:
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
-        self.window_handler = FritzWindowHandler(logger)
-        self.pgn_parser = PGNParser(logger)
-        self.last_content = None
-        self.processed_moves = []
-        self.robot_color = self._get_robot_color()
 
-    def _get_robot_color(self) -> str:
-        """Prompt user to specify robot's color"""
-        while True:
-            color = input("Enter robot's color (white/black): ").lower()
-            if color in ['white', 'black']:
-                return color
-            print("Invalid input. Please enter 'white' or 'black'.")
+class FritzMoveDetector:
+    """Watches Fritz's clipboard PGN and yields new moves for the robot's color.
+
+    ``window_handler`` and ``pgn_parser`` are injected so this module never
+    needs to import pywinauto (Windows-only) -- callers (main.py) construct
+    the real ``FritzWindowHandler`` and wire it in.
+    """
+
+    def __init__(self, logger: logging.Logger, window_handler, pgn_parser: PGNParser,
+                 robot_color: str):
+        self.logger = logger
+        self.window_handler = window_handler
+        self.pgn_parser = pgn_parser
+        self.robot_color = robot_color
+        self.last_content = None
+        self.processed_moves: List[Tuple[str, str]] = []
 
     def get_new_moves(self) -> List[Tuple[str, str]]:
         """Get any new moves since last check"""
@@ -30,15 +31,18 @@ class FritzMoveDetector:
             self.last_content = content
             current_moves = self.pgn_parser.parse_moves(content)
 
-            # Find new moves
-            if len(current_moves) > len(self.processed_moves):
-                new_moves = current_moves[len(self.processed_moves):]
-                self.processed_moves = current_moves
-                # Only return moves for robot's color
-                return [(move, color) for move, color in new_moves 
-                       if color.lower() == self.robot_color]
+            # A new game (shorter move list, or diverged from what we've
+            # already processed) resets tracking so we replay from move 1.
+            if current_moves[: len(self.processed_moves)] != self.processed_moves:
+                self.logger.info("New game detected -- resetting move tracking")
+                self.processed_moves = []
 
-            return []
+            new_moves = current_moves[len(self.processed_moves):]
+            self.processed_moves = current_moves
+
+            # Only return moves for robot's color
+            return [(move, color) for move, color in new_moves
+                    if color.lower() == self.robot_color]
 
         except Exception as e:
             self.logger.error(f"Error getting moves: {e}")
