@@ -1,26 +1,16 @@
 from typing import Tuple, List, Dict, Optional
-import yaml
-import os
+
+from chess_common.config import load_config
 
 class MovementPlanner:
     """Handles chess-specific movement planning and validation"""
-    
-    def __init__(self, logger):
+
+    def __init__(self, logger, config: Optional[Dict] = None):
         self.logger = logger
-        self.config = self._load_config()
-        self.capture_positions = [False] * (self.config['capture_zone']['grid']['rows'] * 
+        self.config = config if config is not None else load_config('board_config')
+        self.capture_positions = [False] * (self.config['capture_zone']['grid']['rows'] *
                                           self.config['capture_zone']['grid']['cols'])
         self.next_capture_position = 0
-
-    def _load_config(self) -> Dict:
-        """Load board configuration"""
-        config_path = "/home/dev_ws/chess/config/board_config.yaml"
-        try:
-            with open(config_path, 'r') as f:
-                return yaml.safe_load(f)
-        except Exception as e:
-            self.logger.error(f"Failed to load config: {e}")
-            raise
 
     def get_coordinates(self, square: str) -> Tuple[float, float, float]:
         """Convert chess notation to coordinates"""
