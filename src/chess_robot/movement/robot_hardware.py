@@ -1,5 +1,11 @@
+import os
+import sys
+import time
+import traceback
+from enum import Enum
+from typing import Any, Dict
+
 import rclpy
-import asyncio
 from geometry_msgs.msg import PoseStamped, Quaternion
 import shape_msgs.msg
 import moveit_msgs.msg
@@ -8,10 +14,14 @@ from moveit_msgs.msg import Constraints, OrientationConstraint
 from moveit_msgs.action import MoveGroup
 from rclpy.action import ActionClient
 from xarm_msgs.srv import VacuumGripperCtrl, GetInt16
-from enum import Enum
-from typing import Dict, Any
-import yaml
-import os
+
+from chess_common.config import load_config
+
+# Gripper points straight down at the board: a 180-degree flip about the
+# Y axis. This orientation is geometric, not calibrated, so it stays a
+# named constant rather than a config value.
+GRIPPER_DOWN_ORIENTATION = Quaternion(x=0.0, y=1.0, z=0.0, w=0.0)
+
 
 class MoveResult(Enum):
     SUCCESS = "Success"
@@ -31,36 +41,64 @@ class RobotHardware:
         self._setup_gripper()
 
     def _load_config(self) -> Dict[str, Any]:
-        """Load robot configuration"""
-        config_path = "/home/dev_ws/chess/config/board_config.yaml"
+        """Load the robot section of the board configuration."""
         try:
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-                return config['robot']
+            return load_config('board_config')['robot']
         except Exception as e:
             self.node.get_logger().error(f"Failed to load config: {e}")
             raise
 
     def _detect_simulation_mode(self) -> bool:
-        """Prompt user to specify if running in simulation or hardware mode"""
-        while True:
-            try:
+        """Resolve simulation vs hardware mode without hanging headless.
+
+        Resolution order:
+        1. ``CHESS_SIM_MODE`` environment variable (``1`` -> sim, ``0`` -> hardware).
+        2. ``robot.simulation_mode`` in board_config.yaml, if present.
+        3. Interactive prompt, but only when stdin is a TTY.
+        Otherwise raise, so a headless container fails fast with a clear
+        message instead of blocking forever on ``input()``.
+        """
+        env = os.environ.get("CHESS_SIM_MODE")
+        if env is not None:
+            env = env.strip()
+            if env == "1":
+                self.node.get_logger().info("CHESS_SIM_MODE=1: simulation mode")
+                return True
+            if env == "0":
+                self.node.get_logger().info("CHESS_SIM_MODE=0: hardware mode")
+                return False
+            raise ValueError(
+                f"CHESS_SIM_MODE must be '1' or '0', got {env!r}"
+            )
+
+        configured = self.config.get("simulation_mode")
+        if configured is not None:
+            mode = "simulation" if configured else "hardware"
+            self.node.get_logger().info(f"Config selects {mode} mode")
+            return bool(configured)
+
+        if sys.stdin.isatty():
+            while True:
                 mode = input("Enter 1 for simulation mode or 2 for hardware mode: ")
                 if mode == "1":
                     self.node.get_logger().info("User selected simulation mode")
                     return True
-                elif mode == "2":
-                    self.node.get_logger().info("User selected hardware mode") 
+                if mode == "2":
+                    self.node.get_logger().info("User selected hardware mode")
                     return False
-                else:
-                    self.node.get_logger().info("Invalid input. Please enter 1 or 2.")
-            except Exception as e:
-                self.node.get_logger().error(f"Error getting user input: {e}")
+                self.node.get_logger().info("Invalid input. Please enter 1 or 2.")
+
+        raise RuntimeError(
+            "Cannot determine simulation mode: no TTY for an interactive prompt. "
+            "Set CHESS_SIM_MODE=1 (simulation) or 0 (hardware), or add "
+            "robot.simulation_mode to board_config.yaml."
+        )
 
     def _setup_action_client(self):
         """Setup MoveGroup action client"""
         self.move_group_client = ActionClient(self.node, MoveGroup, 'move_action')
-        if not self.move_group_client.wait_for_server(timeout_sec=5.0):
+        timeout = self.config['action_server_timeout_sec']
+        if not self.move_group_client.wait_for_server(timeout_sec=timeout):
             raise RuntimeError("Action server not available!")
     
     def _setup_gripper(self):
@@ -79,14 +117,16 @@ class RobotHardware:
             self.vacuum_set_client = None
             self.vacuum_get_client = None
 
-    async def move_to_pose(self, x: float, y: float, z: float) -> MoveResult:
+    def move_to_pose(self, x: float, y: float, z: float) -> MoveResult:
         """Execute movement to given pose"""
         try:
             goal_msg = self._create_move_goal(x, y, z)
-            success = await self._execute_movement(goal_msg)
+            success = self._execute_movement(goal_msg)
             return MoveResult.SUCCESS if success else MoveResult.EXECUTION_FAILED
         except Exception as e:
-            self.node.get_logger().error(f"Move to pose failed: {e}")
+            # ROS get_logger() has no exc_info kwarg; fold the traceback in.
+            self.node.get_logger().error(
+                f"Move to pose failed: {e}\n{traceback.format_exc()}")
             return MoveResult.EXECUTION_FAILED
 
     def _create_move_goal(self, x: float, y: float, z: float) -> MoveGroup.Goal:
@@ -101,7 +141,7 @@ class RobotHardware:
         target_pose.pose.position.x = x
         target_pose.pose.position.y = y
         target_pose.pose.position.z = z
-        target_pose.pose.orientation = Quaternion(x=0.0, y=1.0, z=0.0, w=0.0)
+        target_pose.pose.orientation = GRIPPER_DOWN_ORIENTATION
 
         # Setup constraints
         self._setup_planning_parameters(goal_msg)
@@ -115,12 +155,13 @@ class RobotHardware:
     def _setup_planning_parameters(self, goal_msg: MoveGroup.Goal):
         """Setup workspace bounds and planning parameters from config"""
         goal_msg.request.workspace_parameters.header.frame_id = "world"
-        goal_msg.request.workspace_parameters.min_corner.x = -1.0
-        goal_msg.request.workspace_parameters.min_corner.y = -1.0
-        goal_msg.request.workspace_parameters.min_corner.z = -1.0
-        goal_msg.request.workspace_parameters.max_corner.x = 1.0
-        goal_msg.request.workspace_parameters.max_corner.y = 1.0
-        goal_msg.request.workspace_parameters.max_corner.z = 1.0
+        bound = self.config['workspace_bounds']
+        goal_msg.request.workspace_parameters.min_corner.x = -bound
+        goal_msg.request.workspace_parameters.min_corner.y = -bound
+        goal_msg.request.workspace_parameters.min_corner.z = -bound
+        goal_msg.request.workspace_parameters.max_corner.x = bound
+        goal_msg.request.workspace_parameters.max_corner.y = bound
+        goal_msg.request.workspace_parameters.max_corner.z = bound
 
         movement_config = self.config['movement']
         goal_msg.request.allowed_planning_time = movement_config['planning_time']
@@ -133,44 +174,50 @@ class RobotHardware:
         goal_msg.planning_options.replan_attempts = movement_config['replan_attempts']
         goal_msg.planning_options.replan_delay = movement_config['replan_delay']
 
-    async def _execute_movement(self, goal_msg: MoveGroup.Goal) -> bool:
+    def _execute_movement(self, goal_msg: MoveGroup.Goal) -> bool:
         """Execute the movement with the given goal message"""
+        goal_timeout = self.config['goal_timeout_sec']
         try:
             send_goal_future = self.move_group_client.send_goal_async(goal_msg)
-            rclpy.spin_until_future_complete(self.node, send_goal_future, timeout_sec=65.0)
-            
+            rclpy.spin_until_future_complete(
+                self.node, send_goal_future, timeout_sec=goal_timeout)
+
             if not send_goal_future.done():
                 self.node.get_logger().error("Timeout waiting for goal acceptance")
                 return False
-                
+
             goal_handle = send_goal_future.result()
-            if not goal_handle:
+            # ClientGoalHandle is always truthy; check .accepted for rejection.
+            if not goal_handle.accepted:
                 self.node.get_logger().error("Goal rejected by server")
                 return False
-                
+
             result_future = goal_handle.get_result_async()
-            rclpy.spin_until_future_complete(self.node, result_future, timeout_sec=65.0)
-            
+            rclpy.spin_until_future_complete(
+                self.node, result_future, timeout_sec=goal_timeout)
+
             if not result_future.done():
                 self.node.get_logger().error("Timeout waiting for movement result")
                 return False
-                
+
             status = result_future.result().status
             if status == GoalStatus.STATUS_SUCCEEDED:
                 return True
             else:
                 self._log_error_code(result_future.result().result.error_code.val)
                 return False
-                
+
         except Exception as e:
-            self.node.get_logger().error(f"Movement execution error: {e}")
+            self.node.get_logger().error(
+                f"Movement execution error: {e}\n{traceback.format_exc()}")
             return False
 
-    async def control_gripper(self, enable: bool) -> bool:
+    def control_gripper(self, enable: bool) -> bool:
         """Control vacuum gripper state"""
         if self.simulation_mode:
-            self.node.get_logger().info(f"SIMULATION: {'Enabling' if enable else 'Disabling'} vacuum gripper")
-            await asyncio.sleep(0.5)
+            self.node.get_logger().info(
+                f"SIMULATION: {'Enabling' if enable else 'Disabling'} vacuum gripper")
+            time.sleep(self.config['gripper_sim_settle_sec'])
             return True
 
         try:
@@ -181,26 +228,29 @@ class RobotHardware:
             set_request = VacuumGripperCtrl.Request()
             set_request.on = enable
             set_request.wait = False
-            set_request.timeout = 2.0
-            
+            set_request.timeout = self.config['gripper_request_timeout_sec']
+
             future = self.vacuum_set_client.call_async(set_request)
-            rclpy.spin_until_future_complete(self.node, future, timeout_sec=3.0)
-            
+            rclpy.spin_until_future_complete(
+                self.node, future, timeout_sec=self.config['service_timeout_sec'])
+
             if not future.done():
                 self.node.get_logger().error("Service call timed out")
                 return False
-                
+
             set_response = future.result()
-            
+
             if set_response.ret != 0:
-                self.node.get_logger().error(f"Gripper control failed with return code: {set_response.ret}")
+                self.node.get_logger().error(
+                    f"Gripper control failed with return code: {set_response.ret}")
                 return False
 
-            await asyncio.sleep(1.0)  # Wait for physical actuation
+            time.sleep(self.config['gripper_settle_sec'])  # Wait for physical actuation
             return True
-                
+
         except Exception as e:
-            self.node.get_logger().error(f"Gripper control failed: {e}")
+            self.node.get_logger().error(
+                f"Gripper control failed: {e}\n{traceback.format_exc()}")
             return False
 
     def _create_position_constraint(self, target_pose: PoseStamped) -> Constraints:
