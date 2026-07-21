@@ -26,6 +26,8 @@ robot:
     planning_attempts: 10
     replan_attempts: 10
     replan_delay: 0.1
+    # Settle wait (seconds) between steps of a movement sequence.
+    step_settle_sec: 1.0
   # Half-extent of the planning workspace cube, in metres (min/max +/- this).
   workspace_bounds: 1.0
   # Timeouts (seconds) for spinning on MoveGroup / gripper service futures.
