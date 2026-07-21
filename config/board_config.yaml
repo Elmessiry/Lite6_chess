@@ -39,3 +39,8 @@ robot:
   # Optional: force simulation mode without an interactive prompt.
   # Env var CHESS_SIM_MODE (1/0) takes precedence; leave unset to prompt on a TTY.
   # simulation_mode: false
+
+visualization:
+  # How long to wait for an RViz subscriber at startup before continuing
+  # without it (RViz is optional, not a startup gate).
+  wait_timeout_sec: 10
