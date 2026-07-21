@@ -1,49 +1,56 @@
-import os
-import pika
 import json
 import logging
-import yaml
 import time
-from typing import Dict, Any
+from typing import Any, Dict
+
+import pika
+import pika.exceptions
+
+from chess_common.config import load_config
+
 
 class ChessMovePublisher:
-    def __init__(self, logger: logging.Logger):
+    """Publishes robot moves to RabbitMQ.
+
+    ``connection_factory`` is injectable (defaults to
+    ``pika.BlockingConnection``) so tests can supply a fake and never touch
+    a real broker.
+    """
+
+    def __init__(self, logger: logging.Logger, connection_factory=pika.BlockingConnection):
         self.logger = logger
-        self.config = self._load_config()
+        self.connection_factory = connection_factory
+        self.config: Dict[str, Any] = self._load_config()
+        self.connection = None
+        self.channel = None
         self._setup_connection()
 
     def _load_config(self) -> Dict[str, Any]:
-        """Load RabbitMQ configuration"""
+        """Load RabbitMQ configuration via the shared chess_common loader."""
         try:
-            # Get the correct path to config directory
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-            config_path = os.path.join(project_root, 'config', 'messaging_config.yaml')
-            
-            if not os.path.exists(config_path):
-                raise FileNotFoundError(f"Config file not found at: {config_path}")
-                
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-                return config['rabbitmq']
-                
-        except Exception as e:
-            self.logger.error(f"Failed to load config: {e}")
+            return load_config('messaging_config')['rabbitmq']
+        except Exception:
+            self.logger.error("Failed to load messaging config", exc_info=True)
             raise
 
     def _setup_connection(self) -> None:
         """Setup RabbitMQ connection with retry logic"""
+        conn_cfg = self.config['connection']
+        max_retries = conn_cfg['max_retries']
+        retry_delay = conn_cfg['retry_delay']
         retry_count = 0
-        while retry_count < self.config['connection']['max_retries']:
+        while retry_count < max_retries:
             try:
-                # Simplified connection parameters
-                self.connection = pika.BlockingConnection(
+                self.connection = self.connection_factory(
                     pika.ConnectionParameters(
-                        host='localhost'  # Using localhost instead of IP
+                        host=self.config['host_from_windows'],
+                        port=self.config['port'],
+                        heartbeat=conn_cfg['heartbeat'],
                     )
                 )
                 self.channel = self.connection.channel()
-                
+                self.channel.confirm_delivery()
+
                 # Setup exchange and queue
                 self.channel.exchange_declare(
                     exchange=self.config['exchange'],
@@ -55,44 +62,73 @@ class ChessMovePublisher:
                     queue=self.config['queue'],
                     routing_key=self.config['routing_key']
                 )
-                
+
                 self.logger.info("Successfully connected to RabbitMQ")
-                break
-                
-            except Exception as e:
+                return
+
+            except Exception:
                 retry_count += 1
-                self.logger.error(f"Connection attempt {retry_count} failed: {e}")
-                if retry_count < self.config['connection']['max_retries']:
-                    time.sleep(self.config['connection']['retry_delay'])
+                self.logger.error(
+                    "Connection attempt %d/%d failed", retry_count, max_retries,
+                    exc_info=True,
+                )
+                if retry_count < max_retries:
+                    time.sleep(retry_delay)
                 else:
                     raise
 
-    def publish_move(self, move: str, color: str) -> None:
-        """Publish a move to RabbitMQ"""
+    def publish_move(self, move: str, color: str) -> bool:
+        """Publish a move to RabbitMQ.
+
+        Bounded retry: on transient failure, reconnects and retries up to
+        ``max_retries`` times. Never raises -- returns True on success,
+        False if the move could not be published (caller logs and
+        continues rather than crashing the poll loop).
+        """
         message = {
             "from_square": move[:2],
             "to_square": move[2:]
         }
+        conn_cfg = self.config['connection']
+        max_retries = conn_cfg['max_retries']
+        retry_delay = conn_cfg['retry_delay']
 
-        try:
-            self.channel.basic_publish(
-                exchange=self.config['exchange'],
-                routing_key=self.config['routing_key'],
-                body=json.dumps(message),
-                properties=pika.BasicProperties(delivery_mode=2)
-            )
-            self.logger.info(f"Published {color} move: {move}")
-        except Exception as e:
-            self.logger.error(f"Failed to publish move: {e}")
-            self._setup_connection()  # Attempt reconnection
-            self.channel.basic_publish(
-                exchange=self.config['exchange'],
-                routing_key=self.config['routing_key'],
-                body=json.dumps(message),
-                properties=pika.BasicProperties(delivery_mode=2)
-            )
+        for attempt in range(1, max_retries + 1):
+            try:
+                self.channel.basic_publish(
+                    exchange=self.config['exchange'],
+                    routing_key=self.config['routing_key'],
+                    body=json.dumps(message),
+                    properties=pika.BasicProperties(delivery_mode=2),
+                    mandatory=True,
+                )
+                self.logger.info(f"Published {color} move: {move}")
+                return True
+
+            except pika.exceptions.UnroutableError:
+                # Broker explicitly rejected the route -- not transient,
+                # retrying won't help.
+                self.logger.error(
+                    "Move %s was unroutable (nacked by broker)", move, exc_info=True
+                )
+                return False
+
+            except Exception:
+                self.logger.error(
+                    "Publish attempt %d/%d failed for move %s",
+                    attempt, max_retries, move, exc_info=True,
+                )
+                if attempt < max_retries:
+                    try:
+                        self._setup_connection()
+                    except Exception:
+                        self.logger.error("Reconnection failed", exc_info=True)
+                    time.sleep(retry_delay)
+
+        self.logger.error(f"Failed to publish move {move} after {max_retries} attempts")
+        return False
 
     def cleanup(self) -> None:
         """Close the RabbitMQ connection"""
-        if hasattr(self, 'connection') and not self.connection.is_closed:
+        if self.connection is not None and not self.connection.is_closed:
             self.connection.close()
