@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 import threading
 from typing import Optional
-from .logging_utils import setup_logging
+from chess_common.logging_setup import setup_logging
 
 class PerformanceMetrics:
     """Simple performance metrics collector for chess robot"""

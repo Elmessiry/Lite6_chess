@@ -1,5 +1,7 @@
 rabbitmq:
-  host: host.docker.internal
+  # The broker runs on the Windows host, so each side reaches it differently:
+  host_from_windows: localhost              # publisher runs on the host itself
+  host_from_container: host.docker.internal # subscriber reaches out of Docker
   port: 5672
   exchange: chess_moves
   exchange_type: direct

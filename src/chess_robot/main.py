@@ -2,7 +2,7 @@ import rclpy
 import asyncio
 import time
 from chess_robot.messaging.subscriber import ChessRobotSubscriber
-from chess_robot.logging_utils import setup_logging
+from chess_common.logging_setup import setup_logging
 from chess_robot.performance_logger import PerformanceLogger
 
 # Setup main logger

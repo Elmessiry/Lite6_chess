@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lite6-chess"
+version = "1.0.0"
+description = "Chess-playing xArm Lite6: Fritz GUI scraper -> RabbitMQ -> ROS2/MoveIt robot control"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyYAML>=6.0",
+    "pika>=1.3",
+]
+
+[project.optional-dependencies]
+# ROS2 dependencies (rclpy, moveit_msgs, xarm_msgs, ...) are provided by the
+# container's ROS installation, not pip -- see Dockerfile.
+robot = []
+windows = [
+    "chess>=1.11",
+    "pywinauto>=0.6.9; sys_platform == 'win32'",
+    "pyperclip>=1.9",
+]
+dev = [
+    "pytest>=8",
+    "chess>=1.11",
+]
+
+[project.scripts]
+chess-robot = "chess_robot.main:main"
+chess-fritz = "chess_fritz.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

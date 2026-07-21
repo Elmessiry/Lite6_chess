@@ -1,30 +1,15 @@
-import os
 import time
-import logging
-import logging.config
-import yaml
-import sys
-from fritz_interface.move_detector import FritzMoveDetector
-from messaging.publisher import ChessMovePublisher
 
-# Add the robot/src directory to the Python path
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-robot_src = os.path.join(project_root, 'robot', 'src')
-sys.path.append(robot_src)
-
-# Now import from chess_robot
-from chess_robot.logging_utils import setup_logging
+from chess_common.logging_setup import setup_logging
+from chess_fritz.move_detector import FritzMoveDetector
+from chess_fritz.publisher import ChessMovePublisher
 
 def main():
     try:
         # Setup main logger
         logger = setup_logging('fritz_interface')
         logger.info("Starting Fritz interface application")
-        
-        # Create logs directory if it doesn't exist
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        os.makedirs(os.path.join(project_root, 'logs'), exist_ok=True)
-        
+
         detector = FritzMoveDetector(logger)
         publisher = ChessMovePublisher(logger)
         

@@ -82,7 +82,7 @@ class ChessRobotSubscriber:
             try:
                 self.connection = pika.BlockingConnection(
                     pika.ConnectionParameters(
-                        host=self.config['host'],
+                        host=self.config['host_from_container'],
                         port=self.config['port'],
                         heartbeat=self.config['connection']['heartbeat']
                     )
