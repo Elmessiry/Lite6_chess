@@ -1,36 +1,32 @@
+from typing import Any, Dict, Optional
+
 import rclpy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Quaternion
 from std_msgs.msg import ColorRGBA
-import yaml
-import os
-from typing import Dict, Any
+
+from chess_common.config import load_config
+
+# Markers are static, so republish slowly (1 Hz) just to catch late RViz
+# subscribers rather than flooding at 10 Hz.
+REPUBLISH_PERIOD_SEC = 1.0
+
 
 class ChessboardVisualizer:
-    def __init__(self, node):
+    def __init__(self, node, config: Optional[Dict[str, Any]] = None):
         self.node = node
-        self.config = self._load_config()
-        
+        self.config = config if config is not None else load_config('board_config')
+
         # Publisher for visualization
         self.marker_pub = self.node.create_publisher(
             MarkerArray,
             '/chess_board_visualization',
             10
         )
-        
-        # Create timer for visualization
-        self.visualization_timer = self.node.create_timer(0.1, self.publish_visualization)
 
-    def _load_config(self) -> Dict[str, Any]:
-        """Load board configuration"""
-        config_path = "/home/dev_ws/chess/config/board_config.yaml"  # Use absolute path
-        try:
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-                return config
-        except Exception as e:
-            self.node.get_logger().error(f"Failed to load config: {e}")
-            raise
+        # Create timer for visualization
+        self.visualization_timer = self.node.create_timer(
+            REPUBLISH_PERIOD_SEC, self.publish_visualization)
 
     def create_text_marker(self, text: str, x: float, y: float, z: float, 
                           marker_id: int, scale: float = 0.02) -> Marker:
@@ -103,10 +99,12 @@ class ChessboardVisualizer:
                 
                 square.pose.orientation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
                 
+                # Parity chosen so a1 (i=0, j=0) renders dark, matching a
+                # real board.
                 if (i + j) % 2 == 0:
-                    square.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
-                else:
                     square.color = ColorRGBA(r=0.0, g=0.0, b=0.0, a=1.0)
+                else:
+                    square.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
                 
                 squares.append(square)
         return squares
