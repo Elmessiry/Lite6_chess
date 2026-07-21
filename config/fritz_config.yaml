@@ -1,0 +1,4 @@
+fritz:
+  poll_interval_sec: 5
+  clipboard_delay_sec: 0.1
+  reconnect_after_failures: 3

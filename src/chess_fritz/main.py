@@ -2,6 +2,7 @@ import argparse
 import sys
 import time
 
+from chess_common.config import load_config
 from chess_common.logging_setup import setup_logging
 from chess_fritz.move_detector import FritzMoveDetector
 from chess_fritz.pgn_parser import PGNParser
@@ -52,6 +53,7 @@ def main():
         pgn_parser = PGNParser(logger)
         detector = FritzMoveDetector(logger, window_handler, pgn_parser, robot_color)
         publisher = ChessMovePublisher(logger)
+        poll_interval_sec = load_config('fritz_config')['fritz']['poll_interval_sec']
 
         logger.info("Starting move monitoring...")
         while True:
@@ -63,7 +65,7 @@ def main():
             except Exception:
                 # One bad poll should never kill the monitoring loop.
                 logger.error("Error during poll iteration", exc_info=True)
-            time.sleep(5)
+            time.sleep(poll_interval_sec)
 
     except KeyboardInterrupt:
         if logger:
