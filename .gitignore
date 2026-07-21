@@ -6,7 +6,6 @@ venv/
 .idea/
 .vscode/
 logs/
-PLACEHOLDER
 *.log.venv/
 *.egg-info/
 dist/

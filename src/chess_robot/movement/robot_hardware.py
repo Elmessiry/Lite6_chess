@@ -19,8 +19,14 @@ from chess_common.config import load_config
 
 # Gripper points straight down at the board: a 180-degree flip about the
 # Y axis. This orientation is geometric, not calibrated, so it stays a
-# named constant rather than a config value.
-GRIPPER_DOWN_ORIENTATION = Quaternion(x=0.0, y=1.0, z=0.0, w=0.0)
+# named constant rather than a config value. Stored as a tuple and built
+# fresh per goal so no mutable message instance is shared between goals.
+_GRIPPER_DOWN_XYZW = (0.0, 1.0, 0.0, 0.0)
+
+
+def _gripper_down_orientation() -> Quaternion:
+    x, y, z, w = _GRIPPER_DOWN_XYZW
+    return Quaternion(x=x, y=y, z=z, w=w)
 
 
 class MoveResult(Enum):
@@ -141,7 +147,7 @@ class RobotHardware:
         target_pose.pose.position.x = x
         target_pose.pose.position.y = y
         target_pose.pose.position.z = z
-        target_pose.pose.orientation = GRIPPER_DOWN_ORIENTATION
+        target_pose.pose.orientation = _gripper_down_orientation()
 
         # Setup constraints
         self._setup_planning_parameters(goal_msg)
