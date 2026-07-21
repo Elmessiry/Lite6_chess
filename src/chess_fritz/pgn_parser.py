@@ -8,10 +8,6 @@ class PGNParser:
     def __init__(self, logger: logging.Logger):
         self.logger = logger
 
-    def _process_capture_move(self, move, from_square: str, to_square: str) -> List[str]:
-        """Process a capture move into two parts"""
-        return [f"{to_square}xx", f"{from_square}{to_square}"]
-
     def parse_moves(self, pgn_text: str) -> List[Tuple[str, str]]:
         """Parse all moves from PGN text"""
         try:
@@ -33,8 +29,16 @@ class PGNParser:
                 color = "white" if board.turn else "black"
 
                 if board.is_capture(move):
-                    processed_moves = self._process_capture_move(move, from_square, to_square)
-                    moves.extend((m, color) for m in processed_moves)
+                    if board.is_en_passant(move):
+                        # Captured pawn sits on the to-file at the from-rank,
+                        # not on to_square (the en passant target).
+                        victim_square = chess.square_name(
+                            chess.square(chess.square_file(move.to_square),
+                                         chess.square_rank(move.from_square)))
+                    else:
+                        victim_square = to_square
+                    moves.append((f"{victim_square}xx", color))
+                    moves.append((f"{from_square}{to_square}", color))
                 elif board.is_castling(move):
                     # First add the king's move
                     moves.append((f"{from_square}{to_square}", color))
@@ -47,6 +51,16 @@ class PGNParser:
                 else:
                     # Regular move
                     moves.append((f"{from_square}{to_square}", color))
+
+                if move.promotion:
+                    # Known physical limitation: the robot has no spare
+                    # queen (or other piece) to place on the board, so a
+                    # promotion move is emitted as a plain move and logged
+                    # so the operator is aware manual intervention is needed.
+                    self.logger.warning(
+                        "Promotion move %s%s (%s): robot cannot place a "
+                        "promoted piece -- manual intervention required",
+                        from_square, to_square, color)
 
                 board.push(move)
 
