@@ -6,7 +6,8 @@ venv/
 .idea/
 .vscode/
 logs/
-*.log.venv/
+*.log
+.venv/
 *.egg-info/
 dist/
 build/
