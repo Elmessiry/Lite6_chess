@@ -26,3 +26,23 @@ robot:
     planning_attempts: 10
     replan_attempts: 10
     replan_delay: 0.1
+    # Settle wait (seconds) between steps of a movement sequence.
+    step_settle_sec: 1.0
+  # Half-extent of the planning workspace cube, in metres (min/max +/- this).
+  workspace_bounds: 1.0
+  # Timeouts (seconds) for spinning on MoveGroup / gripper service futures.
+  goal_timeout_sec: 65.0
+  service_timeout_sec: 3.0
+  action_server_timeout_sec: 5.0
+  gripper_request_timeout_sec: 2.0
+  # Physical settle waits (seconds) after a gripper actuation.
+  gripper_settle_sec: 1.0
+  gripper_sim_settle_sec: 0.5
+  # Optional: force simulation mode without an interactive prompt.
+  # Env var CHESS_SIM_MODE (1/0) takes precedence; leave unset to prompt on a TTY.
+  # simulation_mode: false
+
+visualization:
+  # How long to wait for an RViz subscriber at startup before continuing
+  # without it (RViz is optional, not a startup gate).
+  wait_timeout_sec: 10

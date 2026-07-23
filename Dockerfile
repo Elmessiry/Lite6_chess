@@ -1,27 +1,24 @@
 FROM osrf/ros:humble-desktop-full
 
-ARG USERNAME=dozal
+ARG USERNAME=dev
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
+# Pinned for reproducible builds: xArm-Developer/xarm_ros2, humble branch.
+ARG XARM_ROS2_COMMIT=d0b95117dabd3883f41155125aa3f67d37901c18
+
 RUN groupadd --gid $USER_GID $USERNAME \
     && useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME \
-    && apt-get update && apt-get upgrade -y \
-    && apt-get install -y sudo \
-    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
-    && chmod 0440 /etc/sudoers.d/$USERNAME \
-    && chown -R $USER_UID:$USER_GID /home/${USERNAME}/ \
-    && apt-get install -y \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    sudo \
     ros-humble-moveit \
     ros-humble-gazebo-ros-pkgs \
+    ros-humble-ament-cmake \
     python3-pip \
-    evtest \
-    python3-serial \
-    nano \
-    && curl -sSL http://get.gazebosim.org | sh \
-    && pip3 install opencv-python \
-    && pip3 install pika \
-    && apt-get install ros-$ROS_DISTRO-ament-cmake -y \
+    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME \
+    && pip3 install --no-cache-dir pika==1.3.2 PyYAML==6.0.2 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN rosdep fix-permissions \
@@ -32,14 +29,14 @@ RUN echo "source /opt/ros/humble/setup.bash" >> /home/${USERNAME}/.bashrc \
     && chown -R ${USER_UID}:${USER_GID} /home/dev_ws/
 
 WORKDIR /home/dev_ws/src
-RUN git clone https://github.com/xArm-Developer/xarm_ros2.git --recursive -b $ROS_DISTRO
+RUN git clone --recursive https://github.com/xArm-Developer/xarm_ros2.git \
+    && cd xarm_ros2 \
+    && git checkout $XARM_ROS2_COMMIT \
+    && git submodule update --init --recursive
 
-WORKDIR /home/dev_ws/src/xarm_ros2
-RUN git pull && git submodule sync && git submodule update --init --remote
-
-WORKDIR /home/dev_ws/src
-RUN apt-get update && apt-get upgrade -y \
-    && rosdep update && rosdep install --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \
+RUN apt-get update \
+    && rosdep update \
+    && rosdep install --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/dev_ws/
@@ -50,4 +47,5 @@ RUN /bin/bash -c "source /opt/ros/humble/setup.bash \
 
 USER $USERNAME
 ENV ROS_DISTRO=humble
-CMD ["bash", "--init-file", "~/.bashrc"]
+# Interactive bash sources ~/.bashrc on its own; no --init-file needed.
+CMD ["bash"]
