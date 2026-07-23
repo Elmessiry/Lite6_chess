@@ -12,3 +12,4 @@ logs/
 dist/
 build/
 .pytest_cache/
+docs/plans/
