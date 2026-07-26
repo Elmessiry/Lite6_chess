@@ -122,7 +122,13 @@ ROS2- and pywinauto-dependent modules are exercised on the real rig instead.
 - Publisher: delivery confirms, bounded reconnect/retry; a failed publish is
   logged and never crashes the poll loop.
 - Subscriber: at-least-once delivery — a move is acked only after the robot
-  completes it (`prefetch_count=1` gives natural backpressure); malformed
-  messages are dropped without requeue.
+  completes it (`prefetch_count=1` gives natural backpressure). Malformed
+  messages are dropped without requeue; a move that fails to execute is
+  requeued once (for a transient planning failure) and dropped on the second
+  attempt so it can't poison the queue. A broker lost mid-game is retried
+  until it returns, rather than silently killing the consumer.
+- New game: the Fritz side detects a restarted game and publishes a `reset`
+  control message; the robot clears its capture-zone allocator before the
+  replayed moves run.
 - All pika operations run on the connection's owner thread; cross-thread
   signalling uses `add_callback_threadsafe` only.

@@ -78,3 +78,25 @@ def test_filters_to_robot_color_only():
 def test_no_content_returns_empty_list():
     detector = make_detector([None], robot_color="white")
     assert detector.get_new_moves() == []
+
+
+def test_first_game_sets_no_reset_pending():
+    detector = make_detector([PGN_2_MOVES], robot_color="white")
+    detector.get_new_moves()
+    assert detector.take_reset_pending() is False
+
+
+def test_new_game_sets_reset_pending_and_take_clears_it():
+    detector = make_detector([PGN_3_MOVES, PGN_1_MOVE], robot_color="white")
+    detector.get_new_moves()
+    assert detector.take_reset_pending() is False  # first game: no reset
+    detector.get_new_moves()                        # shorter list -> new game
+    assert detector.take_reset_pending() is True
+    assert detector.take_reset_pending() is False   # take() cleared the flag
+
+
+def test_diverged_game_sets_reset_pending():
+    detector = make_detector([PGN_2_MOVES, PGN_DIVERGED_2_MOVES], robot_color="white")
+    detector.get_new_moves()
+    detector.get_new_moves()
+    assert detector.take_reset_pending() is True

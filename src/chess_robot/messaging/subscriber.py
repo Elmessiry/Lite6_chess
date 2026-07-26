@@ -106,14 +106,10 @@ class ChessRobotSubscriber:
                 time.sleep(conn_config["retry_delay"])
 
     def _consume(self):
-        """Consumer-thread entry point: set up, consume, tear down."""
+        """Consumer-thread entry point: set up, consume (with reconnect), tear down."""
         try:
             self._connect()
-            self.channel.basic_consume(
-                queue=self.config["queue"],
-                on_message_callback=self._on_message,
-            )
-        except BaseException as exc:  # setup failed: hand the error to main
+        except BaseException as exc:  # initial setup failed: hand the error to main
             self._consumer_error = exc
             self._consumer_ready.set()
             return
@@ -122,22 +118,65 @@ class ChessRobotSubscriber:
         self._consumer_ready.set()
         self.logger.info("Started consuming messages from RabbitMQ")
 
-        try:
-            self.channel.start_consuming()
-        except Exception:
-            if not self.shutdown_event.is_set():
-                self.logger.error("RabbitMQ consuming error", exc_info=True)
-        finally:
-            self._close_connection()
+        # Consume, and on any mid-run broker failure keep reconnecting until
+        # the broker returns or we're shutting down. Initial setup fails fast
+        # to the operator (above); a broker lost mid-game must self-heal, or
+        # the worker loop would spin forever with a dead connection.
+        while not self.shutdown_event.is_set():
+            try:
+                self.channel.basic_consume(
+                    queue=self.config["queue"],
+                    on_message_callback=self._on_message,
+                )
+                self.channel.start_consuming()
+            except Exception:
+                if self.shutdown_event.is_set():
+                    break
+                self.logger.error(
+                    "RabbitMQ consuming error; attempting to reconnect",
+                    exc_info=True)
+                self._close_connection()
+                if not self._reconnect():
+                    break  # shutdown requested while reconnecting
+        self._close_connection()
+
+    def _reconnect(self) -> bool:
+        """Reconnect after a mid-run failure, retrying until shutdown.
+
+        Returns True once reconnected, False if shutdown was requested first.
+        Runs on the consumer thread only.
+        """
+        while not self.shutdown_event.is_set():
+            try:
+                self._connect()
+                return True
+            except Exception:
+                self.logger.error(
+                    "Reconnect attempt failed; retrying", exc_info=True)
+        return False
 
     def _on_message(self, ch, method, properties, body):
         """Consumer-thread callback: validate and enqueue, or poison-drop."""
         start_time = time.time()
         try:
             message = json.loads(body)
+        except (ValueError, TypeError) as exc:
+            self.logger.error(f"Dropping malformed message {body!r}: {exc}")
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            return
+
+        # New-game reset control message: hand to the worker in order so it
+        # clears the capture-zone allocator before later moves execute.
+        if isinstance(message, dict) and message.get("type") == "reset":
+            self.logger.info("Received new-game reset")
+            self.move_queue.put((message, method.delivery_tag, method.redelivered))
+            self.perf_logger.log_latency("message_processing", start_time)
+            return
+
+        try:
             from_square = message["from_square"]
             to_square = message["to_square"]
-        except (ValueError, KeyError, TypeError) as exc:
+        except (KeyError, TypeError) as exc:
             self.logger.error(f"Dropping malformed message {body!r}: {exc}")
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             return
@@ -148,7 +187,7 @@ class ChessRobotSubscriber:
             return
 
         self.logger.info(f"Received move: {message}")
-        self.move_queue.put((message, method.delivery_tag))
+        self.move_queue.put((message, method.delivery_tag, method.redelivered))
         self.perf_logger.log_latency("message_processing", start_time)
 
     # --- worker loop (main thread) -------------------------------------
@@ -159,8 +198,19 @@ class ChessRobotSubscriber:
             # Service ROS callbacks even when no move is pending.
             rclpy.spin_once(self.node, timeout_sec=0.1)
             try:
-                message, delivery_tag = self.move_queue.get(timeout=0.1)
+                message, delivery_tag, redelivered = self.move_queue.get(timeout=0.1)
             except Empty:
+                continue
+
+            if message.get("type") == "reset":
+                try:
+                    self.node.movement.planner.reset_capture_zone()
+                    self.logger.info("Capture zone reset for new game")
+                    self._schedule_settle(delivery_tag, ack=True)
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to reset capture zone: {e}", exc_info=True)
+                    self._schedule_settle(delivery_tag, ack=False, requeue=False)
                 continue
 
             try:
@@ -175,21 +225,32 @@ class ChessRobotSubscriber:
 
             if ok:
                 self.logger.info(f"Executed move: {message}")
+                self._schedule_settle(delivery_tag, ack=True)
             else:
-                self.logger.error(f"Failed to execute move: {message}")
+                # A genuine execution failure (e.g. transient MoveIt planning
+                # failure) is requeued for one retry, then dropped so a truly
+                # unexecutable move cannot poison the queue forever. This is
+                # distinct from the malformed-message poison-drop in
+                # _on_message, which never requeues.
+                requeue = not redelivered
+                if requeue:
+                    self.logger.error(
+                        f"Move failed; requeuing for one retry: {message}")
+                else:
+                    self.logger.error(
+                        f"Move failed again after retry; dropping: {message}")
+                self._schedule_settle(delivery_tag, ack=False, requeue=requeue)
 
-            self._schedule_ack(delivery_tag, ok)
-
-    def _schedule_ack(self, delivery_tag, ok):
+    def _schedule_settle(self, delivery_tag, ack, requeue=False):
         """Schedule the ack/nack on the consumer thread (pika's owner)."""
-        def ack():
-            if ok:
+        def settle():
+            if ack:
                 self.channel.basic_ack(delivery_tag)
             else:
-                self.channel.basic_nack(delivery_tag, requeue=False)
+                self.channel.basic_nack(delivery_tag, requeue=requeue)
 
         try:
-            self.connection.add_callback_threadsafe(ack)
+            self.connection.add_callback_threadsafe(settle)
         except Exception:
             self.logger.error(
                 "Failed to schedule ack/nack; connection may be closed",
