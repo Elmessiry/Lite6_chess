@@ -147,3 +147,14 @@ def test_cleanup_closes_open_connection(monkeypatch):
     publisher, factory = make_publisher(monkeypatch=monkeypatch)
     publisher.cleanup()
     assert factory.connections[0].is_closed is True
+
+
+def test_publish_reset_sends_reset_body(monkeypatch):
+    publisher, factory = make_publisher(monkeypatch=monkeypatch)
+    ok = publisher.publish_reset()
+    assert ok is True
+    published = factory.connections[0].channel_obj.published
+    assert len(published) == 1
+    import json
+    body = json.loads(published[0]["body"])
+    assert body == {"type": "reset"}

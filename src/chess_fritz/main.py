@@ -59,6 +59,11 @@ def main():
         while True:
             try:
                 new_moves = detector.get_new_moves()
+                # A new game must reset the robot's capture-zone allocator
+                # before its replayed moves are executed.
+                if detector.take_reset_pending():
+                    logger.info("New game -- publishing capture-zone reset")
+                    publisher.publish_reset()
                 for move, color in new_moves:
                     logger.info(f"New {color} move: {move}")
                     publisher.publish_move(move, color)

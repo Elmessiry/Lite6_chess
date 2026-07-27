@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Optional
 import time
 
 from chess_common.config import load_config
@@ -10,14 +10,15 @@ from ..performance_logger import PerformanceLogger
 class MovementController:
     """Controls and coordinates robot movements for chess operations"""
 
-    def __init__(self, node, perf_logger: Optional[PerformanceLogger] = None):
+    def __init__(self, node, perf_logger: Optional[PerformanceLogger] = None,
+                 config: Optional[Dict] = None):
         self.node = node
         self.logger = node.get_logger()
         self.robot = RobotHardware(node)
         self.planner = MovementPlanner(self.logger)
         self.perf_logger = perf_logger or PerformanceLogger()
-        self.step_settle_sec = (
-            load_config('board_config')['robot']['movement']['step_settle_sec'])
+        board_config = config if config is not None else load_config('board_config')
+        self.step_settle_sec = board_config['robot']['movement']['step_settle_sec']
 
     def execute_movement(self, start_square: str, end_square: str) -> bool:
         """Execute a chess piece movement"""

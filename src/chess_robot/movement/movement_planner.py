@@ -55,6 +55,16 @@ class MovementPlanner:
         
         return x, y, z
     
+    def reset_capture_zone(self) -> None:
+        """Clear all capture-zone reservations, e.g. at the start of a new game.
+
+        The physical capture zone is emptied between games, so the allocator
+        must start fresh; otherwise slots leak across games and eventually
+        exhaust.
+        """
+        self.capture_positions = [False] * len(self.capture_positions)
+        self.next_capture_position = 0
+
     def get_next_capture_position(self) -> int:
         """Find next available capture zone position"""
         start_pos = self.next_capture_position

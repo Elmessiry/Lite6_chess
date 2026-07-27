@@ -28,25 +28,39 @@ def logs_dir() -> Path:
     return path
 
 
+_configured = False
+
+
 def setup_logging(component: str | None = None) -> logging.Logger:
     """Configure logging for the application and return a logger.
 
-    Args:
-        component: Optional component name for a specific logger.
-    """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = logs_dir() / f"chess_robot_{timestamp}.log"
+    Logging is a global, process-wide concern, so the actual configuration
+    (dictConfig + the timestamped file handler) is applied only on the first
+    call; later calls from other components just return their named logger.
+    This avoids re-running dictConfig and opening a fresh log file per
+    component at startup.
 
-    try:
-        with open(config_dir() / "logging_config.yaml", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-        config["handlers"]["file"]["filename"] = str(log_file)
-        logging.config.dictConfig(config)
-    except Exception:
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        )
-        logging.exception("Failed to load logging configuration; using basic config")
+    Args:
+        component: Optional component name for a specific logger. The first
+            caller's side (``fritz_*`` vs the robot) also names the log file.
+    """
+    global _configured
+    if not _configured:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        side = "chess_fritz" if (component or "").startswith("fritz") else "chess_robot"
+        log_file = logs_dir() / f"{side}_{timestamp}.log"
+
+        try:
+            with open(config_dir() / "logging_config.yaml", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            config["handlers"]["file"]["filename"] = str(log_file)
+            logging.config.dictConfig(config)
+        except Exception:
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            )
+            logging.exception("Failed to load logging configuration; using basic config")
+        _configured = True
 
     return logging.getLogger(component) if component else logging.getLogger()

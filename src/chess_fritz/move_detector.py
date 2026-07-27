@@ -20,6 +20,15 @@ class FritzMoveDetector:
         self.robot_color = robot_color
         self.last_content = None
         self.processed_moves: List[Tuple[str, str]] = []
+        # Set when a new game is detected; consumed by the caller (main loop)
+        # to publish a reset so the robot clears its capture-zone allocator.
+        self.reset_pending = False
+
+    def take_reset_pending(self) -> bool:
+        """Return whether a new-game reset is pending, clearing the flag."""
+        pending = self.reset_pending
+        self.reset_pending = False
+        return pending
 
     def get_new_moves(self) -> List[Tuple[str, str]]:
         """Get any new moves since last check"""
@@ -36,6 +45,7 @@ class FritzMoveDetector:
             if current_moves[: len(self.processed_moves)] != self.processed_moves:
                 self.logger.info("New game detected -- resetting move tracking")
                 self.processed_moves = []
+                self.reset_pending = True
 
             new_moves = current_moves[len(self.processed_moves):]
             self.processed_moves = current_moves

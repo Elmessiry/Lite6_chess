@@ -89,6 +89,14 @@ class ChessMovePublisher:
             "from_square": move[:2],
             "to_square": move[2:]
         }
+        return self._publish(message, f"{color} move: {move}")
+
+    def publish_reset(self) -> bool:
+        """Publish a new-game reset so the robot clears its capture-zone allocator."""
+        return self._publish({"type": "reset"}, "new-game reset")
+
+    def _publish(self, message: Dict[str, Any], description: str) -> bool:
+        """Publish a message body with bounded reconnect/retry. Never raises."""
         conn_cfg = self.config['connection']
         max_retries = conn_cfg['max_retries']
         retry_delay = conn_cfg['retry_delay']
@@ -102,21 +110,21 @@ class ChessMovePublisher:
                     properties=pika.BasicProperties(delivery_mode=2),
                     mandatory=True,
                 )
-                self.logger.info(f"Published {color} move: {move}")
+                self.logger.info(f"Published {description}")
                 return True
 
             except pika.exceptions.UnroutableError:
                 # Broker explicitly rejected the route -- not transient,
                 # retrying won't help.
                 self.logger.error(
-                    "Move %s was unroutable (nacked by broker)", move, exc_info=True
+                    "%s was unroutable (nacked by broker)", description, exc_info=True
                 )
                 return False
 
             except Exception:
                 self.logger.error(
-                    "Publish attempt %d/%d failed for move %s",
-                    attempt, max_retries, move, exc_info=True,
+                    "Publish attempt %d/%d failed for %s",
+                    attempt, max_retries, description, exc_info=True,
                 )
                 if attempt < max_retries:
                     try:
@@ -125,7 +133,7 @@ class ChessMovePublisher:
                         self.logger.error("Reconnection failed", exc_info=True)
                     time.sleep(retry_delay)
 
-        self.logger.error(f"Failed to publish move {move} after {max_retries} attempts")
+        self.logger.error(f"Failed to publish {description} after {max_retries} attempts")
         return False
 
     def cleanup(self) -> None:

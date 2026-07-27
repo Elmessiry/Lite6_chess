@@ -87,6 +87,16 @@ def test_capture_zone_exhaustion_raises(planner):
         planner.get_next_capture_position()
 
 
+def test_reset_capture_zone_frees_all_slots(planner):
+    # Exhaust the zone (as a full game would), then reset for a new game.
+    for _ in range(24):
+        planner.get_next_capture_position()
+    planner.reset_capture_zone()
+    # All 24 slots are available again, handed back from index 0.
+    positions = [planner.get_next_capture_position() for _ in range(24)]
+    assert positions == list(range(24))
+
+
 def test_get_capture_coordinates_bounds(planner):
     with pytest.raises(ValueError):
         planner.get_capture_coordinates(24)
